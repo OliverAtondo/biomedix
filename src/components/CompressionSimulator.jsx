@@ -16,11 +16,29 @@ const CompressionSimulator = () => {
     const [isRunning, setIsRunning] = useState(false);
     const [singleTriangleData, setSingleTriangleData] = useState([]);
     const [repeatedTriangleData, setRepeatedTriangleData] = useState([]);
-
+    const [ipAddress, setIpAddress] = useState('https://normal-sawfly-better.ngrok-free.app/api/signal');
+    
     const bpmToHertz = (bpm) => {
         return bpm / 60;
     };
 
+    const sendSignalData = async (signalData) => {
+        try {
+            const response = await fetch('https://normal-sawfly-better.ngrok-free.app/api/signal', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(signalData),
+            });
+            const responseData = await response.json();
+            console.log(responseData);
+        } catch (error) {
+            console.error('Error al enviar datos de la señal:', error);
+        }
+    };
+    
+    
     const generateTriangle = (bpm, dutyCycle, perfusionRate, deptLen) => {
         const hertz = bpmToHertz(bpm);
         const period = 1 / hertz;
@@ -43,7 +61,7 @@ const CompressionSimulator = () => {
         }
         return triangle;
     };
-
+    
     useEffect(() => {
         setSingleTriangleData(generateTriangle(bpm, dutyCycle, perfusionRate, deptLen));
 
@@ -55,7 +73,20 @@ const CompressionSimulator = () => {
                 const newTriangle = generateTriangle(bpm, dutyCycle, perfusionRate, deptLen);
                 const adjustedTriangle = newTriangle.map(point => ({ x: point.x + nextTriangleStart, y: point.y }));
                 setRepeatedTriangleData(prevData => [...prevData, ...adjustedTriangle]);
+                
                 nextTriangleStart += newTriangle[newTriangle.length - 1].x;
+
+                var dataObject = {
+                    usuario: "Simulador",
+                    escenario: "peligroso",
+                    frecuencia: bpm,
+                    duty: dutyCycle,
+                    perfusion: perfusionRate,
+                    profundo: deptLen,
+                    pico: singleTriangleData
+                }
+                sendSignalData({dataObject});
+                console.log('Triangulo...');
 
                 compressionCount++;
                 if (compressionCount >= 30) {
@@ -66,7 +97,12 @@ const CompressionSimulator = () => {
             }, 60000 / bpm);
         }
         return () => clearInterval(intervalId);
+        // eslint-disable-next-line
     }, [bpm, dutyCycle, perfusionRate, deptLen, isRunning]);
+
+    const toggleRunning = () => {
+        setIsRunning(!isRunning);
+    };
     
     const clearGraph = () => {
         setRepeatedTriangleData([]);
@@ -93,6 +129,51 @@ const CompressionSimulator = () => {
     };
 
     const options = {
+        scales: {
+            x: {
+                type: 'linear',
+                min: 0,
+                max: 20,
+                grid: {
+                    color: 'black'
+                },
+                ticks: {
+                    callback: (value) => `${value.toFixed(1)} s`
+                }
+            },
+            y: {
+                beginAtZero: true,
+                grid: {
+                    color: 'black'
+                },
+                ticks: {
+                    callback: (value) => `${value.toFixed(1)} in`
+                }
+            }
+        },
+        plugins: {
+            legend: {
+                labels: {
+                    color: 'black'
+                }
+            }
+        },
+        layout: {
+            padding: {
+                top: 20,
+                right: 20,
+                bottom: 20,
+                left: 20
+            }
+        },
+        backgroundColor: 'white',
+        animation: {
+            duration: 0
+        },
+        maintainAspectRatio: false
+    };
+
+    const options2 = {
         scales: {
             x: {
                 type: 'linear',
@@ -152,7 +233,10 @@ const CompressionSimulator = () => {
             <h1>
                 Simulador de señal de compresiones torácicas
             </h1>
-
+                <p style={{margin: "5%"}}>Dentro de este espacio se desarrolla el simulador de compresiones torácicas, con el objetivo de enviar señales 
+                    manipuladas por el usuario, al ser un generador de señales manipulable se pueden calibrar los instrumentos de medición
+                    físicos (circuitos) y a su vez se pueden utilizar las señales para ser evaluadas por el sistema evaluador (servicio).
+                </p>
             
             <div style={{ display: 'flex', alignItems: 'center', width: '100%' }}>
             <div style={{ width: '50%', textAlign: 'right' }}>
@@ -174,17 +258,22 @@ const CompressionSimulator = () => {
                 </div>
             </div>
                 <div style={{ width: '30vw', height: '30vw' }}> {/* Ajusta esta altura según tus necesidades */}
-                <Line data={chartDataSingle} options={options} />
+                <Line data={chartDataSingle} options={options2} />
                 </div>
             </div>
-
             <div>
-                <button onClick={() => setIsRunning(!isRunning)}>{isRunning ? "Parar" : "Continuar"}</button>
+                <div>
+                    <label>Dirección IP (local): </label>
+                    <input type="text" value={ipAddress} onChange={(e) => setIpAddress(e.target.value)} />
+                </div>
+                <br/>
+                <button onClick={toggleRunning}>{isRunning ? "Parar" : "Continuar"}</button>
                 <button onClick={clearGraph}>Limpiar Gráfica</button>
-                <h3>
+
+                <h3 style={{marginTop: '40px'}}>
                 Señal transmitida
                 </h3>
-                <div style={{ width: '80%', marginTop: '20px', alignItems: 'center', marginLeft: '10%', height: "60vh" }}>
+                <div style={{ width: '80%', marginBottom: '20%', alignItems: 'center', marginLeft: '10%', height: "60vh" }}>
                     <Line data={chartDataRepeated} options={options} />
                 </div>
             </div>
